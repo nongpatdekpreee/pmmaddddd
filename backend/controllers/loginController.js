@@ -12,6 +12,7 @@ const {
 } = require('../services/refreshTokenService');
 const { normalizeRole, toDbRole } = require('../utils/roleUtils');
 const { resolveTenantForUserId, tenantFromEmail } = require('../utils/tenantScope');
+const { systemUsernameExcludeSql } = require('../utils/systemAccounts');
 const {
   ensureAuthLinkReady,
   createAndLinkLoginAccount,
@@ -458,6 +459,7 @@ const getAllUsers = async (req, res) => {
 const getEmployeeAccounts = async (req, res) => {
   try {
     await ensureAuthLinkReady();
+    const hideSystem = systemUsernameExcludeSql('u.Username');
     const [rows] = await db.execute(
       `SELECT
          p.user_id AS employee_id,
@@ -472,7 +474,9 @@ const getEmployeeAccounts = async (req, res) => {
          u.Role
        FROM user_profiles p
        LEFT JOIN user u ON u.User_id = p.auth_user_id
-       ORDER BY CAST(p.user_id AS UNSIGNED) ASC`
+       WHERE 1=1${hideSystem.sql}
+       ORDER BY CAST(p.user_id AS UNSIGNED) ASC`,
+      hideSystem.params
     );
 
     const data = rows.map((row) => ({

@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { normalizeRole } = require('../utils/roleUtils');
 const { tenantEmployeeFilter } = require('../utils/tenantScope');
+const { systemUsernameExcludeSql, getSystemUsernames } = require('../utils/systemAccounts');
 const {
   ensureAuthLinkReady,
   createAndLinkLoginAccount,
@@ -59,6 +60,7 @@ const getEmployees = async (req, res) => {
 
     // สร้าง WHERE condition สำหรับ search
     const ef = tenantEmployeeFilter(req.user && req.user.tenant, 'p.gmail');
+    const hideSystem = systemUsernameExcludeSql('u.Username');
     let searchCondition = '';
     let searchParams = [];
 
@@ -70,11 +72,19 @@ const getEmployees = async (req, res) => {
         p.gmail LIKE ? OR 
         p.phone LIKE ? OR
         u.Username LIKE ?
-      )${ef.sql}`;
-      searchParams = [searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, ...ef.params];
+      )${ef.sql}${hideSystem.sql}`;
+      searchParams = [
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        ...ef.params,
+        ...hideSystem.params,
+      ];
     } else {
-      searchCondition = `WHERE 1=1${ef.sql}`;
-      searchParams = [...ef.params];
+      searchCondition = `WHERE 1=1${ef.sql}${hideSystem.sql}`;
+      searchParams = [...ef.params, ...hideSystem.params];
     }
 
     // นับจำนวน records ทั้งหมด
@@ -108,7 +118,9 @@ const getEmployees = async (req, res) => {
     console.log(`Found ${rows.length} employees from database`);
 
     // Map data to match frontend format (รองรับทั้ง name, Name, Username จาก DB)
-    const employees = rows.map((row) => ({
+    const systemNames = new Set(getSystemUsernames());
+    const employees = rows
+      .map((row) => ({
       id: String(row.user_id),
       name: row.name ?? row.Name ?? row.Username ?? row.username ?? '',
       gmail: row.gmail || '',
@@ -123,7 +135,13 @@ const getEmployees = async (req, res) => {
             Role: normalizeRole(row.Role),
           }
         : null,
-    }));
+    }))
+      .filter((emp) => {
+        const uname = String(emp.account?.Username || '')
+          .trim()
+          .toLowerCase();
+        return !uname || !systemNames.has(uname);
+      });
 
     console.log(`Mapped ${employees.length} employees for response`);
 
@@ -153,19 +171,21 @@ const getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const ef = tenantEmployeeFilter(req.user && req.user.tenant, 'gmail');
+    const ef = tenantEmployeeFilter(req.user && req.user.tenant, 'p.gmail');
+    const hideSystem = systemUsernameExcludeSql('u.Username');
     const sql = `SELECT 
-      user_id,
-      name,
-      phone,
-      gmail,
-      type,
-      employment,
-      em_picture
-    FROM user_profiles 
-    WHERE user_id = ?${ef.sql}`;
+      p.user_id,
+      p.name,
+      p.phone,
+      p.gmail,
+      p.type,
+      p.employment,
+      p.em_picture
+    FROM user_profiles p
+    LEFT JOIN user u ON u.User_id = p.auth_user_id
+    WHERE p.user_id = ?${ef.sql}${hideSystem.sql}`;
 
-    const [rows] = await db.execute(sql, [id, ...ef.params]);
+    const [rows] = await db.execute(sql, [id, ...ef.params, ...hideSystem.params]);
 
     if (rows.length === 0) {
       return res.status(404).json({

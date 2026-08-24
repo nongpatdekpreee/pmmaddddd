@@ -1,10 +1,10 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
-const path = require('path');
 const loginRoutes = require('./routes/loginRoutes');
 const { authenticateToken } = require('./middleware/authMiddleware');
 const { requireSession } = require('./middleware/requireSession');
@@ -108,6 +108,11 @@ async function startServer() {
   await ensureUserTable();
   await ensureRefreshTokensTable();
   await ensureEmployeeAuthLinkColumn();
+  const { getSystemUsernames } = require('./utils/systemAccounts');
+  const hidden = getSystemUsernames().length;
+  if (hidden > 0) {
+    console.log(`[auth] SYSTEM_USERNAMES loaded — hiding ${hidden} account(s) from Employee list`);
+  }
   startCronJobs();
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
