@@ -1,5 +1,5 @@
 const db = require('../config/database');
-const { DEFAULT_IN_STORE_SITE_NAME } = require('../config/inStoreSite');
+const { DEFAULT_IN_STORE_SITE_NAME, resolveAllInStoreSlids } = require('../config/inStoreSite');
 const {
   normalizeReferSofKey,
   deviceSofSelect,
@@ -1712,10 +1712,15 @@ const getDevicesByAssetState = async (req, res) => {
   }
 };
 
-// GET - ดึง Devices In Store ในคลังตามชื่อ site (DEFAULT_IN_STORE_SITE_NAME) — ไม่กรอง Dtypeid/DeRoleid
+// GET - ดึง Devices In Store ทุก SLid (ทุก lid) ใต้ site คลัง Bangna — ไม่กรอง Location2 / Dtypeid / DeRoleid
 const getReplacementDevices = async (req, res) => {
   try {
+    const warehouseSlids = await resolveAllInStoreSlids(db);
+    if (warehouseSlids.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
     const tf = tenantClause(req, 'd');
+    const slidPlaceholders = warehouseSlids.map(() => '?').join(',');
     const sql = `
       SELECT 
         d.Did,
@@ -1727,20 +1732,22 @@ const getReplacementDevices = async (req, res) => {
         d.DeRoleid,
         d.SLid,
         s.Name AS SiteName,
+        IFNULL(l.Location2, '') AS Location2,
         dt.model,
         dr.name AS roleName
       FROM devices d
       INNER JOIN sites_location sl ON d.SLid = sl.SLid
-      INNER JOIN sites s ON sl.Sid = s.Sid AND LOWER(TRIM(s.Name)) = LOWER(TRIM(?))
+      INNER JOIN sites s ON sl.Sid = s.Sid
+      LEFT JOIN location l ON sl.lid = l.lid
       LEFT JOIN device_type dt ON d.Dtypeid = dt.Dtypeid
       LEFT JOIN device_role dr ON d.DeRoleid = dr.DeRoleid
-      WHERE (LOWER(TRIM(COALESCE(d.Asset_State, ''))) = 'in store')
+      WHERE d.SLid IN (${slidPlaceholders})
+        AND (LOWER(TRIM(COALESCE(d.Asset_State, ''))) = 'in store')
       ${tf.sql}
       ORDER BY d.CI_Name ASC, d.Asset_Number ASC
-      LIMIT 500
     `;
 
-    const [rows] = await db.execute(sql, [DEFAULT_IN_STORE_SITE_NAME, ...tf.params]);
+    const [rows] = await db.execute(sql, [...warehouseSlids, ...tf.params]);
 
     res.status(200).json({
       success: true,
@@ -2312,7 +2319,7 @@ module.exports = {
   getDevicesNoSofInStore,    // GET (devices ที่ไม่มี SOF + สถานะ In Store สำหรับ Edit Contract SOF ใหม่)
   getDevicesBySite,          // GET (devices ตาม site_id สำหรับ Asset Binding)
   getDevicesByAssetState,    // GET (devices ตาม Asset_State สำหรับ MA)
-  getReplacementDevices,    // GET In Store ในคลังตามชื่อ site (ไม่กรอง dtype/role)
+  getReplacementDevices,    // GET In Store ทุก lid ของ site บางนา
   getDevicesWithPM,          // GET (devices with PM information for Asset & Site Database)
   viewDeviceHistory,         // GET (view all device history)
   getDeviceHistory,          // GET (device history by id)

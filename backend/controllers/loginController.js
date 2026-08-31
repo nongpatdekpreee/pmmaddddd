@@ -17,7 +17,7 @@ const {
   ensureAuthLinkReady,
   createAndLinkLoginAccount,
 } = require('../lib/employeeAuthLink');
-const { parseTelLineFromDb, PHONE_MAIN_MAX_DIGITS, PHONE_EXT_MAX_DIGITS } = require('../utils/phoneFormat');
+const { parseTelLineFromDb, PHONE_MAIN_MIN_DIGITS, PHONE_MAIN_MAX_DIGITS, PHONE_EXT_MAX_DIGITS } = require('../utils/phoneFormat');
 
 async function generateNextProfileUserId() {
   const [rows] = await db.execute('SELECT user_id FROM user_profiles');
@@ -41,7 +41,12 @@ function validateRegisterPhone(telLine) {
   const mainD = String(parsed.tel || '').replace(/\D/g, '');
   const extD = String(parsed.telExt || '').replace(/\D/g, '');
   if (!mainD) return 'Phone is required.';
-  if (mainD.length !== PHONE_MAIN_MAX_DIGITS) return 'Phone must be 10 digits.';
+  if (mainD.length < PHONE_MAIN_MIN_DIGITS) {
+    return `Phone must be at least ${PHONE_MAIN_MIN_DIGITS} digits.`;
+  }
+  if (mainD.length > PHONE_MAIN_MAX_DIGITS) {
+    return `Phone must be at most ${PHONE_MAIN_MAX_DIGITS} digits.`;
+  }
   if (extD && (extD.length < 1 || extD.length > PHONE_EXT_MAX_DIGITS)) {
     return 'Extension must be 1–6 digits when provided.';
   }

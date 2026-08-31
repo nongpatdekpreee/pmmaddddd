@@ -1,5 +1,6 @@
 /** @typedef {{ tel: string; telExt: string }} ParsedPhone */
 
+const PHONE_MAIN_MIN_DIGITS = 8;
 const PHONE_MAIN_MAX_DIGITS = 10;
 const PHONE_EXT_MAX_DIGITS = 6;
 const PHONE_CONTRACT_MAIN_MIN = 9;
@@ -86,6 +87,7 @@ function looksLikePhoneLine(line) {
 }
 
 module.exports = {
+  PHONE_MAIN_MIN_DIGITS,
   PHONE_MAIN_MAX_DIGITS,
   PHONE_EXT_MAX_DIGITS,
   parseTelLineFromDb,

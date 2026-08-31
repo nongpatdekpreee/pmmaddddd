@@ -1394,7 +1394,7 @@ const EmployeeManagement = () => {
                         <ul className="ml-4 list-disc space-y-0.5">
                           <li><strong>Name</strong> = employee name</li>  
                           <li><strong>Email</strong> = email address</li>
-                          <li><strong>Phone_Number</strong> = 10 digits (0xx-xxx-xxxx), optional extension (up to 6 digits) e.g. <code className="bg-blue-100 px-1 rounded">0812345678-123456</code></li>
+                          <li><strong>Phone_Number</strong> = 8–10 digits (0xx-xxx-xxxx), optional extension (up to 6 digits) e.g. <code className="bg-blue-100 px-1 rounded">0812345678-123456</code></li>
                           <li><strong>Position_Type</strong> = Technical, Management, or Engineer</li>
                           <li><strong>Employment_Type</strong> = Full-Time, Contract, or Part-time</li>
                         </ul>

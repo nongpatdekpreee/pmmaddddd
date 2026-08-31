@@ -1803,9 +1803,9 @@ export function AddTaskModal({
         if (repErr) {
           const th =
             repErr === 'Phone is required.'
-              ? 'Please enter Client phone (10 digits)'
-              : repErr === 'Phone must be 10 digits.'
-                ? ' Client phone must be 10 digits'
+              ? 'Please enter Client phone (at least 8 digits)'
+              : repErr === 'Phone must be at least 8 digits.' || repErr === 'Phone must be 10 digits.'
+                ? ' Client phone must be at least 8 digits'
                 : repErr.startsWith('Extension')
                   ? 'If you enter extension (EXT), Client phone must be 1–6 digits'
                   : `Client: ${repErr}`;

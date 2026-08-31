@@ -5,7 +5,10 @@
  */
 const DEFAULT_IN_STORE_SITE_NAME = 'บริษัท ที.ซี.ซี.เทคโนโลยี จำกัด Bangna';
 
-/** Location2 เริ่มต้นเมื่อ auto-provision คลัง (sites + location + sites_location) */
+/**
+ * Location2 ใช้เฉพาะตอน auto-provision แถวคลังถ้ายังไม่มี sites_location
+ * ไม่ใช้กรองรายการเครื่องทดแทน — pool = ทุก lid / SLid ใต้ site บางนา + In Store
+ */
 const DEFAULT_IN_STORE_WAREHOUSE_LOCATION = 'Bangna';
 
 let cachedDefaultInStoreSlid = null;
@@ -23,7 +26,25 @@ function slugFromName(text) {
 }
 
 /**
- * SLid แรกของ sites_location ใต้ site คลัง (ORDER BY SLid) — ไม่ hardcode SLid
+ * SLid ทุกแถว sites_location ใต้ site คลัง Bangna (ทุก lid) — ไม่กรองชื่อ location
+ * @returns {Promise<number[]>}
+ */
+async function resolveAllInStoreSlids(dbOrConn) {
+  const [rows] = await dbOrConn.execute(
+    `SELECT sl.SLid
+     FROM sites_location sl
+     INNER JOIN sites s ON sl.Sid = s.Sid
+     WHERE LOWER(TRIM(s.Name)) = LOWER(TRIM(?))
+     ORDER BY sl.SLid ASC`,
+    [DEFAULT_IN_STORE_SITE_NAME]
+  );
+  return (rows || [])
+    .map((r) => parseInt(r.SLid, 10))
+    .filter((n) => !Number.isNaN(n) && n > 0);
+}
+
+/**
+ * SLid แรกของ sites_location ใต้ site คลัง (ORDER BY SLid) — ใช้ตอนย้ายเครื่องกลับคลังเท่านั้น
  * @returns {Promise<number|null>}
  */
 async function resolveDefaultInStoreSlid(dbOrConn, { refresh = false } = {}) {
@@ -131,6 +152,7 @@ async function assignDeviceToInStoreWarehouse(dbOrConn, deviceId) {
 module.exports = {
   DEFAULT_IN_STORE_SITE_NAME,
   DEFAULT_IN_STORE_WAREHOUSE_LOCATION,
+  resolveAllInStoreSlids,
   resolveDefaultInStoreSlid,
   ensureDefaultInStoreWarehouseSlid,
   assignDeviceToInStoreWarehouse,

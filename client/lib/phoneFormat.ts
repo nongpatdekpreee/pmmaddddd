@@ -1,16 +1,18 @@
 /**
- * Employee phone: ช่องหลัก 10 หลัก แสดงเป็น xxx-xxx-xxxx (ใส่ - อัตโนมัติ)
+ * Employee phone: ช่องหลัก 8–10 หลัก แสดงเป็น xxx-xxx-xxxx (ใส่ - อัตโนมัติ)
  * ต่อ (Ext) สูงสุด 6 หลัก — บันทึกเป็น mainDigits-ext เช่น 0123456789-123456
  */
 
-/** จำนวนหลักสูงสุด — ใช้ร่วมกับแจ้งเตือนใน UI */
+/** จำนวนหลักขั้นต่ำ / สูงสุด — ใช้ร่วมกับแจ้งเตือนใน UI */
+export const PHONE_MAIN_MIN_DIGITS = 8;
 export const PHONE_MAIN_MAX_DIGITS = 10;
 export const PHONE_EXT_MAX_DIGITS = 6;
 
+const MAIN_MIN = PHONE_MAIN_MIN_DIGITS;
 const MAIN_LEN = PHONE_MAIN_MAX_DIGITS;
 const EXT_MAX = PHONE_EXT_MAX_DIGITS;
 
-/** แสดงเบอร์ 10 หลักแบบ xxx-xxx-xxxx จาก input ใดๆ */
+/** แสดงเบอร์สูงสุด 10 หลักแบบ xxx-xxx-xxxx จาก input ใดๆ */
 export function formatTenDigitUsDisplay(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, MAIN_LEN);
   if (d.length <= 3) return d;
@@ -92,24 +94,26 @@ export function validateOptionalContractPhoneLine(line: string): string {
   return '';
 }
 
-/** ระหว่างพิมพ์: แจ้งเฉพาะเมื่อน้อยกว่า 4 หลัก (มีตัวเลขแล้ว) หรือเกิน 10 หลัก */
+/** ระหว่างพิมพ์: แจ้งเมื่อเกิน max หรือมีตัวเลขแล้วน้อยกว่า min */
 export function validateEmployeePhoneInline(tel: string, telExt: string): string {
   const mainD = tel.replace(/\D/g, '');
   const extD = telExt.replace(/\D/g, '');
-  if (mainD.length > MAIN_LEN) return 'Phone must be at most 10 digits.';
-  if (mainD.length > 0 && mainD.length < 4) return 'Phone must be at least 4 digits.';
+  if (mainD.length > MAIN_LEN) return `Phone must be at most ${MAIN_LEN} digits.`;
+  if (mainD.length > 0 && mainD.length < MAIN_MIN) {
+    return `Phone must be at least ${MAIN_MIN} digits.`;
+  }
   if (extD && (extD.length < 1 || extD.length > EXT_MAX)) {
     return 'Extension must be 1–6 digits when provided.';
   }
   return '';
 }
 
-/** เบอร์ไม่บังคับ — ระหว่างพิมพ์ไม่เตือนเรื่อง “อย่างน้อย 4 หลัก”; ตรวจเฉพาะเกิน 10 / ต่อไม่ถูก / มีต่อแต่ไม่มีเบอร์หลัก */
+/** เบอร์ไม่บังคับ — ระหว่างพิมพ์ไม่เตือนเรื่องขั้นต่ำ; ตรวจเฉพาะเกิน max / ต่อไม่ถูก */
 export function validateOptionalEmployeePhoneInline(tel: string, telExt: string): string {
   const mainD = tel.replace(/\D/g, '');
   const extD = telExt.replace(/\D/g, '');
   if (!mainD && !extD) return '';
-  if (mainD.length > MAIN_LEN) return 'Phone must be at most 10 digits.';
+  if (mainD.length > MAIN_LEN) return `Phone must be at most ${MAIN_LEN} digits.`;
   if (extD && !mainD) return 'Enter the main number before extension.';
   if (extD && (extD.length < 1 || extD.length > EXT_MAX)) {
     return 'Extension must be 1–6 digits when provided.';
@@ -117,12 +121,13 @@ export function validateOptionalEmployeePhoneInline(tel: string, telExt: string)
   return '';
 }
 
-/** ตอนส่งฟอร์ม / import — เบอร์หลักต้องครบ 10 หลัก */
+/** ตอนส่งฟอร์ม / import — เบอร์หลัก 8–10 หลัก */
 export function validateEmployeePhoneSubmit(tel: string, telExt: string): string {
   const mainD = tel.replace(/\D/g, '');
   const extD = telExt.replace(/\D/g, '');
   if (!mainD) return 'Phone is required.';
-  if (mainD.length !== MAIN_LEN) return 'Phone must be 10 digits.';
+  if (mainD.length < MAIN_MIN) return `Phone must be at least ${MAIN_MIN} digits.`;
+  if (mainD.length > MAIN_LEN) return `Phone must be at most ${MAIN_LEN} digits.`;
   if (extD && (extD.length < 1 || extD.length > EXT_MAX)) {
     return 'Extension must be 1–6 digits when provided.';
   }
@@ -140,7 +145,7 @@ export function validateOptionalEmployeePhoneSubmit(tel: string, telExt: string)
 /** @deprecated ใช้ validateEmployeePhoneSubmit หรือ validateEmployeePhoneInline */
 export const validateContractStylePhone = validateEmployeePhoneSubmit;
 
-/** แสดงในรายการ: xxx-xxx-xxxx หรือ xxx-xxx-xxxx - ext (รองรับเบอร์บ้าน 9 หลัก) */
+/** แสดงในรายการ: xxx-xxx-xxxx หรือ xxx-xxx-xxxx - ext */
 export function formatEmployeeTelForDisplay(line: string): string {
   const p = parseTelLineFromDb(String(line ?? '').trim());
   const d = p.tel.replace(/\D/g, '');

@@ -602,6 +602,34 @@ const extractBrokenDeviceIdFromAsset = (asset) => {
   return null;
 };
 
+/** Did ที่ต้องซิงก์ Assigned_Service: เครื่องเสียใน assets + เครื่องทดแทน */
+const collectMaAssignedServiceDeviceIds = (assets, taskReplacementDeviceId) => {
+  const ids = new Set();
+  if (Array.isArray(assets)) {
+    for (const a of assets) {
+      const brokenId = extractBrokenDeviceIdFromAsset(a);
+      if (brokenId != null) ids.add(brokenId);
+    }
+  }
+  for (const id of collectMaReplacementReferTicketDeviceIds(assets, taskReplacementDeviceId)) {
+    ids.add(id);
+  }
+  return [...ids];
+};
+
+/** MA: เขียน assigned_service ของงานลง devices.Assigned_Service */
+const syncMaAssignedServiceOnDevices = async (assets, assignedService, taskReplacementDeviceId) => {
+  const ids = collectMaAssignedServiceDeviceIds(assets, taskReplacementDeviceId);
+  if (ids.length === 0) return;
+  const raw = assignedService == null ? '' : String(assignedService).trim();
+  const val = raw === '' ? null : raw.length > 255 ? raw.slice(0, 255) : raw;
+  const placeholders = ids.map(() => '?').join(',');
+  await db.execute(
+    `UPDATE devices SET Assigned_Service = ? WHERE Did IN (${placeholders})`,
+    [val, ...ids]
+  );
+};
+
 /** อุปกรณ์ที่กรอกเองใน Add Plan MA (ยังไม่มี Did จริงใน devices) */
 const isManualMaAsset = (asset) => {
   if (asset == null || typeof asset !== 'object') return false;
@@ -1002,13 +1030,13 @@ const createTask = async (req, res) => {
       insertColumns.push(utCol);
       insertValues.push(endTimeNorm);
     }
+    const assignedServiceForCreate =
+      String(taskType || '').toUpperCase() === 'MA'
+        ? normalizeAssignedServiceFromBody(req.body)
+        : null;
     if (await taskColumnExists('assigned_service')) {
       insertColumns.push('assigned_service');
-      const asVal =
-        String(taskType || '').toUpperCase() === 'MA'
-          ? normalizeAssignedServiceFromBody(req.body)
-          : null;
-      insertValues.push(asVal);
+      insertValues.push(assignedServiceForCreate);
     }
     if (await taskColumnExists('reporter_position')) {
       insertColumns.push('reporter_position');
@@ -1033,6 +1061,11 @@ const createTask = async (req, res) => {
     // MA: Asset_State อุปกรณ์ที่เสียจะอัปเดตเมื่อกด Done เท่านั้น
     if (String(taskType || '').toUpperCase() === 'MA') {
       await syncMaReferTicketOnDevices(assetsToSave, ticket, replacementIdToSave);
+      await syncMaAssignedServiceOnDevices(
+        assetsToSave,
+        assignedServiceForCreate,
+        replacementIdToSave
+      );
     }
 
     const { select, join } = await buildTaskQueryFragments();
@@ -1394,8 +1427,22 @@ const updateTask = async (req, res) => {
     const newContractId = contractId !== undefined ? contractId : existing[0].contract_id;
     const currentTaskType = taskType !== undefined ? taskType : existing[0].task_type;
     const mergedTicket = ticket !== undefined ? (ticket || null) : existing[0].ticket;
+    const mergedAssignedService = (() => {
+      const asInBody = assignedService !== undefined || assigned_service !== undefined;
+      if (asInBody) {
+        return String(currentTaskType || '').toUpperCase() === 'MA'
+          ? normalizeAssignedServiceFromBody(req.body)
+          : null;
+      }
+      return existing[0].assigned_service ?? null;
+    })();
     if (currentTaskType === 'MA') {
       await syncMaReferTicketOnDevices(newAssets, mergedTicket, newReplacementDeviceId);
+      await syncMaAssignedServiceOnDevices(
+        newAssets,
+        mergedAssignedService,
+        newReplacementDeviceId
+      );
     }
 
     if (
